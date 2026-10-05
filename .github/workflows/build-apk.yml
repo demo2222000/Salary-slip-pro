@@ -24,6 +24,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
       - name: Setup Environment and Keystore
         run: |
@@ -46,11 +48,22 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # 3. Ensure gradlew is executable
-          chmod +x ./gradlew
+          # 3. Ensure Gradle wrapper exists and has execute permission
+          if [ ! -f "./gradlew" ]; then
+            echo "Gradlew not found, generating wrapper with Gradle 9.3.1..."
+            gradle wrapper --gradle-version 9.3.1
+          fi
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          fi
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
