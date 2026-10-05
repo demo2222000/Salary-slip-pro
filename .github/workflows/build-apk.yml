@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build Debug & Release APK
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
@@ -25,18 +25,29 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Ensure Gradle Wrapper Exists
+      - name: Setup Environment and Keystore
         run: |
-          if [ ! -f "./gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            gradle wrapper
+          # 1. Ensure .env exists for the secrets plugin
+          if [ ! -f ".env" ]; then
+            if [ -f ".env.example" ]; then
+              cp .env.example .env
+            else
+              touch .env
+            fi
+            echo "APP_ENV=ci" >> .env
           fi
-          chmod +x ./gradlew
 
-      - name: Create Mock .env File
-        run: |
-          touch .env
-          echo "APP_BUILD_ENV=ci" >> .env
+          # 2. Ensure debug.keystore exists (required by signingConfigs.debugConfig in app/build.gradle.kts)
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Restoring debug.keystore from base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
+            echo "Generating debug.keystore with keytool..."
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          # 3. Ensure gradlew is executable
+          chmod +x ./gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
